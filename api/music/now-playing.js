@@ -2,17 +2,16 @@
  * GET  /api/music/now-playing — 获取当前播放状态
  * POST /api/music/now-playing — 更新当前播放（管理员）
  *
- * 数据存在内存（重启丢失），每次管理员操作时更新。
- * 所有访客轮询这个接口获取当前播放的歌曲。
+ * 管理员操作时 POST，所有访客 GET 轮询。
+ * startedAt 记录歌曲开始播放的时间戳，前端据此计算播放进度。
  */
 
-// 内存存储（Cloudflare Worker 重启会丢失，但对音乐同步够用）
 let state = {
   track: null as { id: number; name: string; artist: string; album: string; cover: string; url: string } | null,
   isPlaying: false,
+  startedAt: 0,    // Date.now() when song started
   playlist: [] as Array<{ id: number; name: string; artist: string; album: string; cover: string }>,
   playlistName: "",
-  updated: 0,
 };
 
 const corsHeaders = {
@@ -38,8 +37,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as typeof state;
-    state = { ...body, updated: Date.now() };
+    const body = await request.json();
+    state = { ...state, ...body };
     return json({ success: true });
   } catch {
     return json({ error: "无效数据" }, 400);

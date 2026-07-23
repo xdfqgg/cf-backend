@@ -1,12 +1,12 @@
-/**
- * POST /api/auth/register — 用户注册
- */
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-const WZ_API = "https://api.github.com/repos/xdfqgg/wz/contents/data/users.json";
+const WZ_API =
+  "https://api.github.com/repos/xdfqgg/wz/contents/data/users.json";
+const TOKEN = process.env.GITHUB_TOKEN || "";
 
-function ghHeaders(token: string) {
+function ghHeaders() {
   return {
-    Authorization: `Bearer ${token}`,
+    Authorization: `Bearer ${TOKEN}`,
     "User-Agent": "cf-backend",
     Accept: "application/vnd.github.v3+json",
   };
@@ -20,29 +20,26 @@ async function sha256(text: string): Promise<string> {
     .join("");
 }
 
-export default async function handler(req: Request) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
-    return Response.json({ error: "Method not allowed" }, { status: 405 });
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) {
-    return Response.json({ error: "服务器配置错误" }, { status: 500 });
+  const { username, password } = req.body || {};
+
+  if (!username || !password || username.length < 2 || password.length < 6) {
+    return res.status(400).json({ error: "用户名至少2位，密码至少6位" });
   }
 
   try {
-    const { username, password } = await req.json();
-    if (!username || !password || username.length < 2 || password.length < 6) {
-      return Response.json({ error: "用户名至少2位，密码至少6位" }, { status: 400 });
-    }
+    const ghRes = await fetch(WZ_API, { headers: ghHeaders() });
+    const data = (await ghRes.json()) as { content: string; sha: string };
+    const users = JSON.parse(Buffer.from(data.content, "base64").toString());
 
-    // 读取现有用户
-    const res = await fetch(WZ_API, { headers: ghHeaders(token) });
-    const data = (await res.json()) as { content: string; sha: string };
-    const users = JSON.parse(atob(data.content));
-
-    if (users.find((u: any) => u.username === username)) {
-      return Response.json({ error: "用户名已存在" }, { status: 409 });
+    if (
+      users.find((u: { username: string }) => u.username === username)
+    ) {
+      return res.status(409).json({ error: "用户名已存在" });
     }
 
     const hash = await sha256(password);
@@ -53,22 +50,21 @@ export default async function handler(req: Request) {
       created: new Date().toISOString().slice(0, 10),
     });
 
-    // 写回 wz 仓库
     const body = JSON.stringify({
-      message: `注册用户: ${username}`,
-      content: btoa(JSON.stringify(users, null, 2)),
+      message: `注册: ${username}`,
+      content: Buffer.from(JSON.stringify(users, null, 2)).toString("base64"),
       sha: data.sha,
     });
 
     await fetch(WZ_API, {
       method: "PUT",
-      headers: { ...ghHeaders(token), "Content-Type": "application/json" },
+      headers: { ...ghHeaders(), "Content-Type": "application/json" },
       body,
     });
 
-    return Response.json({ success: true });
+    return res.json({ success: true });
   } catch (err) {
     console.error(err);
-    return Response.json({ error: "服务器错误" }, { status: 500 });
+    return res.status(500).json({ error: "服务器错误" });
   }
 }

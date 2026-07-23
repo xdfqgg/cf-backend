@@ -4,6 +4,7 @@
   "type": "module",
   "devDependencies": {
     "@types/node": "^26.1.1",
+    "@vercel/node": "^5.8.26",
     "typescript": "^7.0.2"
   }
 }

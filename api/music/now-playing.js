@@ -2,17 +2,10 @@
  * GET  /api/music/now-playing — 获取当前播放状态
  * POST /api/music/now-playing — 更新当前播放（管理员）
  *
- * 管理员操作时 POST，所有访客 GET 轮询。
- * startedAt 记录歌曲开始播放的时间戳，前端据此计算播放进度。
+ * 数据持久化到 wz 仓库 data/now-playing.json，Vercel 冷启动不丢。
  */
 
-let state = {
-  track: null as { id: number; name: string; artist: string; album: string; cover: string } | null,
-  isPlaying: false,
-  startedAt: 0,
-  playlist: [] as Array<{ id: number; name: string; artist: string; album: string; cover: string }>,
-  playlistName: "",
-};
+const WZ = "https://api.github.com/repos/xdfqgg/wz/contents/data/now-playing.json";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,11 +13,66 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-function json(data: any, status = 200) {
+function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: { "Content-Type": "application/json", ...corsHeaders },
   });
+}
+
+function ghHeaders() {
+  return {
+    Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+    "User-Agent": "cf-backend",
+    Accept: "application/vnd.github.v3+json",
+  };
+}
+
+const defaultState = {
+  track: null,
+  isPlaying: false,
+  startedAt: 0,
+  playlist: [],
+  playlistName: "",
+};
+
+// 内存缓存（减少 GitHub API 调用）
+let cache = null;
+let cacheTime = 0;
+
+async function readState() {
+  // 缓存 2 秒
+  if (cache && Date.now() - cacheTime < 2000) return cache;
+  try {
+    const res = await fetch(WZ, { headers: ghHeaders() });
+    if (!res.ok) return { ...defaultState };
+    const data = await res.json();
+    cache = JSON.parse(Buffer.from(data.content, "base64").toString("utf-8"));
+    cacheTime = Date.now();
+    return cache;
+  } catch {
+    return { ...defaultState };
+  }
+}
+
+async function writeState(state) {
+  try {
+    let sha = "";
+    try {
+      const res = await fetch(WZ, { headers: ghHeaders() });
+      const data = await res.json();
+      sha = data.sha || "";
+    } catch {}
+
+    const content = Buffer.from(JSON.stringify(state)).toString("base64");
+    await fetch(WZ, {
+      method: "PUT",
+      headers: { ...ghHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "update now-playing", content, ...(sha ? { sha } : {}) }),
+    });
+    cache = state;
+    cacheTime = Date.now();
+  } catch {}
 }
 
 export async function OPTIONS() {
@@ -32,13 +80,15 @@ export async function OPTIONS() {
 }
 
 export async function GET() {
+  const state = await readState();
   return json(state);
 }
 
-export async function POST(request: Request) {
+export async function POST(request) {
   try {
     const body = await request.json();
-    state = { ...state, ...body };
+    const state = { ...defaultState, ...body };
+    await writeState(state);
     return json({ success: true });
   } catch {
     return json({ error: "无效数据" }, 400);

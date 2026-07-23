@@ -2,5 +2,8 @@
   "name": "cf-backend",
   "version": "1.0.0",
   "type": "module",
-  "dependencies": {}
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2"
+  }
 }

@@ -1,7 +1,3 @@
-/**
- * POST /api/auth/register
- */
-
 const WZ = "https://api.github.com/repos/xdfqgg/wz/contents/data/users.json";
 
 function ghHeaders() {
@@ -12,7 +8,7 @@ function ghHeaders() {
   };
 }
 
-async function sha256(text: string) {
+async function sha256(text) {
   const data = new TextEncoder().encode(text);
   const hash = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(hash))
@@ -20,7 +16,7 @@ async function sha256(text: string) {
     .join("");
 }
 
-export async function POST(request: Request) {
+export async function POST(request) {
   try {
     const { username, password } = await request.json();
     if (!username || !password || username.length < 2 || password.length < 6) {
@@ -31,10 +27,10 @@ export async function POST(request: Request) {
     }
 
     const res = await fetch(WZ, { headers: ghHeaders() });
-    const data: any = await res.json();
+    const data = await res.json();
     const users = JSON.parse(Buffer.from(data.content, "base64").toString());
 
-    if (users.find((u: any) => u.username === username)) {
+    if (users.find((u) => u.username === username)) {
       return Response.json({ error: "用户名已存在" }, { status: 409 });
     }
 

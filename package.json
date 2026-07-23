@@ -1,6 +1,7 @@
 {
   "name": "cf-backend",
   "version": "1.0.0",
+  "type": "module",
   "devDependencies": {
     "@types/node": "^26.1.1",
     "@vercel/node": "^5.8.26",

@@ -1,5 +1,18 @@
 const WZ = "https://api.github.com/repos/xdfqgg/wz/contents/data/users.json";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeaders },
+  });
+}
+
 function ghHeaders() {
   return {
     Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
@@ -16,11 +29,15 @@ async function sha256(text) {
     .join("");
 }
 
+export async function OPTIONS() {
+  return new Response(null, { headers: corsHeaders });
+}
+
 export async function POST(request) {
   try {
     const { username, password } = await request.json();
     if (!username || !password || username.length < 2 || password.length < 6) {
-      return Response.json(
+      return json(
         { error: "用户名至少2位，密码至少6位" },
         { status: 400 }
       );
@@ -31,7 +48,7 @@ export async function POST(request) {
     const users = JSON.parse(Buffer.from(data.content, "base64").toString());
 
     if (users.find((u) => u.username === username)) {
-      return Response.json({ error: "用户名已存在" }, { status: 409 });
+      return json({ error: "用户名已存在" }, { status: 409 });
     }
 
     const hash = await sha256(password);
@@ -52,9 +69,9 @@ export async function POST(request) {
       }),
     });
 
-    return Response.json({ success: true });
+    return json({ success: true });
   } catch (err) {
     console.error(err);
-    return Response.json({ error: "服务器错误" }, { status: 500 });
+    return json({ error: "服务器错误" }, { status: 500 });
   }
 }

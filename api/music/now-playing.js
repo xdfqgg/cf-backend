@@ -7,9 +7,9 @@
  */
 
 let state = {
-  track: null as { id: number; name: string; artist: string; album: string; cover: string; url: string } | null,
+  track: null as { id: number; name: string; artist: string; album: string; cover: string } | null,
   isPlaying: false,
-  startedAt: 0,    // Date.now() when song started
+  startedAt: 0,
   playlist: [] as Array<{ id: number; name: string; artist: string; album: string; cover: string }>,
   playlistName: "",
 };

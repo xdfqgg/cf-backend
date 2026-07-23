@@ -1,5 +1,5 @@
 /**
- * POST /api/auth/login — 用户登录
+ * POST /api/auth/login
  */
 
 const WZ = "https://api.github.com/repos/xdfqgg/wz/contents/data/users.json";
@@ -12,32 +12,12 @@ function ghHeaders() {
   };
 }
 
-async function sha256(text: string): Promise<string> {
+async function sha256(text: string) {
   const data = new TextEncoder().encode(text);
   const hash = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(hash))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-}
-
-async function signJWT(payload: object): Promise<string> {
-  const header = { alg: "HS256", typ: "JWT" };
-  const now = Math.floor(Date.now() / 1000);
-  const full = { ...payload, iat: now, exp: now + 86400 * 7 };
-
-  const b64 = (obj: object) =>
-    btoa(JSON.stringify(obj)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-
-  const toSign = `${b64(header)}.${b64(full)}`;
-  const key = await crypto.subtle.importKey(
-    "raw", new TextEncoder().encode(process.env.JWT_SECRET!),
-    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(toSign));
-  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig)))
-    .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-
-  return `${toSign}.${sigB64}`;
 }
 
 export async function POST(request: Request) {
@@ -48,8 +28,8 @@ export async function POST(request: Request) {
     }
 
     const res = await fetch(WZ, { headers: ghHeaders() });
-    const data = await res.json() as { content: string };
-    const users = JSON.parse(atob(data.content));
+    const data: any = await res.json();
+    const users = JSON.parse(Buffer.from(data.content, "base64").toString());
 
     const user = users.find((u: any) => u.username === username);
     if (!user) {
@@ -61,8 +41,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "用户名或密码错误" }, { status: 401 });
     }
 
-    const token = await signJWT({ username: user.username, role: user.role });
-    return Response.json({ success: true, token, role: user.role });
+    return Response.json({ success: true, role: user.role });
   } catch (err) {
     console.error(err);
     return Response.json({ error: "服务器错误" }, { status: 500 });
